@@ -20,7 +20,7 @@ export const register = asyncHandler(async (req, res) => {
     res.cookie("token",token ,cookieOptions);
 
     return res.status(201).json(
-        ApiResponse(201, "User registered successfully", { user})
+      new ApiResponse(201, "User registered successfully", { user})
     );
 });
 
@@ -44,7 +44,7 @@ export const logout = asyncHandler(async (req, res) => {
 export const getCurrentUser = asyncHandler(async (req, res) => {
     return res.status(200).json(
         new ApiResponse(200,"Current user fetched !",{
-            user: req.user;
+            user: req.user,
         })
     );
 });
