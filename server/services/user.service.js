@@ -28,7 +28,7 @@ export const getProfile = async (userId) => {
   return user;
 };
 
-export const updateProfile = async (userId, data) => {
+export const updateProfile = async (userId, data = {}) => {
   const allowedFields = [
     "name",
     "phone",
@@ -40,32 +40,27 @@ export const updateProfile = async (userId, data) => {
     "preferredDifficulty",
   ];
 
-  const updateData = {};
-
-  for (const field of allowedFields) {
-    if (data[field] !== undefined) {
-      if (field === "name" || field === "phone" || field === "bio") {
-        updateData[field === "bio" ? "profile.bio" : field] =
-          data[field].trim();
-      } else {
-        updateData[`profile.${field}`] = data[field];
-      }
-    }
-  }
-
   const user = await User.findById(userId);
 
   if (!user) {
     throw new ApiError(404, "User not found");
   }
 
-  for (const [key, value] of Object.entries(updateData)) {
-    const [parent, child] = key.split(".");
+  if (!user.profile) {
+    user.profile = {};
+  }
 
-    if (child) {
-      user[parent][child] = value;
-    } else {
-      user[parent] = value;
+  for (const field of allowedFields) {
+    if (data[field] !== undefined) {
+      const val = typeof data[field] === "string" ? data[field].trim() : data[field];
+
+      if (field === "name" || field === "phone") {
+        user[field] = val;
+      } else if (field === "bio") {
+        user.profile.bio = val;
+      } else {
+        user.profile[field] = val;
+      }
     }
   }
 
@@ -73,5 +68,7 @@ export const updateProfile = async (userId, data) => {
 
   await user.save();
 
-  return user;
+  const sanitizedUser = await User.findById(userId).select("-password -googleId");
+
+  return sanitizedUser;
 };

@@ -1,8 +1,12 @@
 import User from "../models/user.model.js";
-import ApiError from "../utils/ApiError.js";
+import ApiError from "../utils/apiError.js";
 
 export const registerUser = async ({ name, email, password, phone }) => {
-  const normalizedEmail = email.toLowerCase();
+  const normalizedEmail = email?.trim()?.toLowerCase();
+
+  if (!normalizedEmail) {
+    throw new ApiError(400, "Email is required");
+  }
 
   const existingUser = await User.findOne({
     email: normalizedEmail,
