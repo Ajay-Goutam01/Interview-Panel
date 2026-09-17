@@ -3,6 +3,8 @@ import ApiError from "../utils/apiError.js";
 import { getAgentInstructions } from "./agent-prompt.service.js";
 import { extractAIText } from "../utils/aiParser.js";
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+
 export const generateFirstQuestion = async ({ resume, interview }) => {
   if (!resume?.parsedData) {
     throw new ApiError(400, "Resume analysis is not available");
@@ -11,10 +13,10 @@ export const generateFirstQuestion = async ({ resume, interview }) => {
   const agentInstructions = getAgentInstructions(interview.currentAgent);
 
   try {
-    const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    const response = await openai.chat.completions.create({
+      model: GEMINI_MODEL,
 
-      input: [
+      messages: [
         {
           role: "system",
           content: `
@@ -43,7 +45,7 @@ ${interview.difficulty}
 
 Language:
 ${interview.language}
-`,
+          `,
         },
 
         {
@@ -68,7 +70,12 @@ ${interview.language}
       throw error;
     }
 
-    throw new ApiError(500, `Failed to generate interview question: ${error.message}`);
+    console.error("Interview question generation error:", error);
+
+    throw new ApiError(
+      500,
+      `Failed to generate interview question: ${error.message}`,
+    );
   }
 };
 
@@ -79,10 +86,10 @@ export const generateFollowUpQuestion = async ({
   evaluation,
 }) => {
   try {
-    const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    const response = await openai.chat.completions.create({
+      model: GEMINI_MODEL,
 
-      input: [
+      messages: [
         {
           role: "system",
           content: `
@@ -137,6 +144,11 @@ Rules:
       throw error;
     }
 
-    throw new ApiError(500, `Failed to generate follow-up question: ${error.message}`);
+    console.error("Follow-up question generation error:", error);
+
+    throw new ApiError(
+      500,
+      `Failed to generate follow-up question: ${error.message}`,
+    );
   }
 };

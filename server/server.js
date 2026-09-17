@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 
 import http from "http";
 import app from "./app.js";
@@ -14,14 +13,11 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin:
-      process.env.CLIENT_URL ||
-      "http://localhost:5173",
+    origin: process.env.CLIENT_URL || "http://localhost:5173",
     credentials: true,
   },
 });
 
-// Register realtime voice socket
 registerVoiceSocket(io);
 
 const startServer = async () => {
@@ -29,16 +25,10 @@ const startServer = async () => {
     await connectDB();
 
     server.listen(PORT, () => {
-      console.log(
-        `🚀 Server running on port ${PORT}`
-      );
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error(
-      "❌ Server startup failed",
-      error
-    );
-
+    console.error("❌ Server startup failed", error);
     process.exit(1);
   }
 };

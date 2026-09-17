@@ -14,17 +14,14 @@ const VALID_CLAIM_TYPES = [
 
 export const extractClaimsWithAI = async (resumeText) => {
   if (!resumeText || resumeText.trim().length < 50) {
-    throw new ApiError(
-      400,
-      "Resume does not contain enough readable text"
-    );
+    throw new ApiError(400, "Resume does not contain enough readable text");
   }
 
   try {
-    const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    const response = await openai.chat.completions.create({
+      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
 
-      input: [
+      messages: [
         {
           role: "system",
           content: `
@@ -73,7 +70,9 @@ Allowed types:
 achievement, performance, technical, leadership, experience, education, other
 
 confidence must be between 0 and 1.
-verificationRequired should be true when the claim should reasonably be challenged during an interview.
+
+verificationRequired should be true when the claim
+should reasonably be challenged during an interview.
           `,
         },
         {
@@ -90,28 +89,54 @@ verificationRequired should be true when the claim should reasonably be challeng
     }
 
     const parsedResult = parseAIJson(result);
-    const rawClaims = Array.isArray(parsedResult.claims) ? parsedResult.claims : [];
+
+    const rawClaims = Array.isArray(parsedResult.claims)
+      ? parsedResult.claims
+      : [];
 
     const validatedClaims = rawClaims
-      .filter((c) => c && typeof c.text === "string" && c.text.trim().length > 0)
+      .filter(
+        (c) => c && typeof c.text === "string" && c.text.trim().length > 0,
+      )
       .map((c) => ({
         text: c.text.trim(),
+
         type: VALID_CLAIM_TYPES.includes(c.type) ? c.type : "other",
-        metric: c.metric ? String(c.metric).trim() : null,
-        context: c.context ? String(c.context).trim() : null,
-        confidence: typeof c.confidence === "number" ? Math.max(0, Math.min(1, c.confidence)) : 0.8,
+
+        metric:
+          c.metric !== null &&
+          c.metric !== undefined &&
+          String(c.metric).trim().length > 0
+            ? String(c.metric).trim()
+            : null,
+
+        context:
+          c.context !== null &&
+          c.context !== undefined &&
+          String(c.context).trim().length > 0
+            ? String(c.context).trim()
+            : null,
+
+        confidence:
+          typeof c.confidence === "number"
+            ? Math.max(0, Math.min(1, c.confidence))
+            : 0.8,
+
         verificationRequired: Boolean(c.verificationRequired),
       }));
 
     return validatedClaims;
   } catch (error) {
+    console.error("CLAIMS EXTRACTION ERROR:", error);
+    console.error("MESSAGE:", error.message);
+
     if (error instanceof ApiError) {
       throw error;
     }
 
     throw new ApiError(
       500,
-      `Failed to extract claims from resume: ${error.message}`
+      `Failed to extract claims from resume: ${error.message}`,
     );
   }
 };

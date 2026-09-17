@@ -1,28 +1,31 @@
-import openai from "../config/openai.js";
+import { File } from "node:buffer";
+import { SarvamAIClient } from "sarvamai";
 import ApiError from "../utils/apiError.js";
 
-export const transcribeAudio = async (audioData, originalname = "audio.webm") => {
+const sarvam = new SarvamAIClient({
+  apiSubscriptionKey: process.env.SARVAM_API_KEY,
+});
+
+export const transcribeAudio = async (
+  audioData,
+  originalname = "audio.webm",
+) => {
   if (!audioData) {
     throw new ApiError(400, "Audio file is required");
   }
 
   try {
-    let fileInput;
-
-    if (Buffer.isBuffer(audioData)) {
-      fileInput = await openai.toFile(audioData, originalname);
-    } else {
-      fileInput = await openai.toFile(audioData);
-    }
-
-    const transcription = await openai.audio.transcriptions.create({
-      file: fileInput,
-      model: process.env.OPENAI_TRANSCRIPTION_MODEL || "whisper-1",
-      response_format: "text",
+    const audioFile = new File([audioData], originalname, {
+      type: "audio/webm",
     });
 
-    const text =
-      typeof transcription === "string" ? transcription : transcription?.text;
+    const response = await sarvam.speechToText.transcribe({
+      file: audioFile,
+      model: process.env.SARVAM_STT_MODEL || "saaras:v4",
+      language_code: "unknown",
+    });
+
+    const text = response?.transcript;
 
     if (!text?.trim()) {
       throw new ApiError(400, "Could not understand the audio");
@@ -34,31 +37,45 @@ export const transcribeAudio = async (audioData, originalname = "audio.webm") =>
       throw error;
     }
 
+    console.error("SARVAM STT ERROR:", error);
+    console.error("MESSAGE:", error.message);
+
     throw new ApiError(500, `Failed to transcribe audio: ${error.message}`);
   }
 };
 
-export const generateSpeech = async ({ text, voice = "alloy" }) => {
+export const generateSpeech = async ({
+  text,
+  languageCode = "en-IN",
+  speaker = "shubh",
+}) => {
   if (!text?.trim()) {
     throw new ApiError(400, "Text is required for speech generation");
   }
 
-  const validVoices = ["alloy", "echo", "fable", "onyx", "nova", "shimmer"];
-  const selectedVoice = validVoices.includes(voice) ? voice : "alloy";
-
   try {
-    const speech = await openai.audio.speech.create({
-      model: process.env.OPENAI_TTS_MODEL || "tts-1",
-      voice: selectedVoice,
-      input: text.trim(),
-      response_format: "mp3",
+    const response = await sarvam.textToSpeech.convert({
+      text: text.trim(),
+      model: process.env.SARVAM_TTS_MODEL || "bulbul:v3",
+      language_code: languageCode,
+      speaker,
+      output_audio_codec: "mp3",
     });
 
-    return speech;
+    const base64Audio = response?.audios?.[0];
+
+    if (!base64Audio) {
+      throw new Error("Sarvam returned empty audio");
+    }
+
+    return Buffer.from(base64Audio, "base64");
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
     }
+
+    console.error("SARVAM TTS ERROR:", error);
+    console.error("MESSAGE:", error.message);
 
     throw new ApiError(500, `Failed to generate speech: ${error.message}`);
   }

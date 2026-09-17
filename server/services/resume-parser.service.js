@@ -8,10 +8,10 @@ export const parseResumeWithAI = async (resumeText) => {
   }
 
   try {
-    const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    const response = await openai.chat.completions.create({
+      model: process.env.GEMINI_MODEL || "gemini-2.5-flash",
 
-      input: [
+      messages: [
         {
           role: "system",
           content: `
@@ -87,18 +87,34 @@ Certification objects:
 
     return {
       summary: parsed.summary || null,
+
       skills: Array.isArray(parsed.skills) ? parsed.skills : [],
+
       education: Array.isArray(parsed.education) ? parsed.education : [],
+
       experience: Array.isArray(parsed.experience) ? parsed.experience : [],
+
       projects: Array.isArray(parsed.projects) ? parsed.projects : [],
-      achievements: Array.isArray(parsed.achievements) ? parsed.achievements : [],
-      certifications: Array.isArray(parsed.certifications) ? parsed.certifications : [],
+
+      achievements: Array.isArray(parsed.achievements)
+        ? parsed.achievements
+        : [],
+
+      certifications: Array.isArray(parsed.certifications)
+        ? parsed.certifications
+        : [],
     };
   } catch (error) {
+    console.error("RESUME AI PARSER ERROR:", error);
+    console.error("MESSAGE:", error.message);
+
     if (error instanceof ApiError) {
       throw error;
     }
 
-    throw new ApiError(500, `Failed to parse resume using AI: ${error.message}`);
+    throw new ApiError(
+      500,
+      `Failed to parse resume using AI: ${error.message}`,
+    );
   }
 };

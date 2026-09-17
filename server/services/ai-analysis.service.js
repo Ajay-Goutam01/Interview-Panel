@@ -20,10 +20,10 @@ export const analyzeResumeWithAI = async (arg1, arg2) => {
   }
 
   try {
-    const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    const response = await openai.chat.completions.create({
+      model: process.env.GEMINI_MODEL || "gemini-3.6-flash",
 
-      input: [
+      messages: [
         {
           role: "system",
           content: `
@@ -42,9 +42,11 @@ Evaluate the resume based on:
 8. Interview readiness
 
 Do not invent information.
+
 Return ONLY valid JSON.
 
 Use exactly this structure:
+
 {
   "overallScore": 0,
   "strengths": [],
@@ -80,18 +82,30 @@ Rules:
 
     const analysis = parseAIJson(result);
 
-    const score = typeof analysis.overallScore === "number"
-      ? Math.max(0, Math.min(100, Math.round(analysis.overallScore)))
-      : 70;
+    const score =
+      typeof analysis.overallScore === "number"
+        ? Math.max(0, Math.min(100, Math.round(analysis.overallScore)))
+        : 70;
 
     return {
       overallScore: score,
+
       strengths: Array.isArray(analysis.strengths) ? analysis.strengths : [],
+
       weaknesses: Array.isArray(analysis.weaknesses) ? analysis.weaknesses : [],
-      missingSkills: Array.isArray(analysis.missingSkills) ? analysis.missingSkills : [],
-      recommendations: Array.isArray(analysis.recommendations) ? analysis.recommendations : [],
+
+      missingSkills: Array.isArray(analysis.missingSkills)
+        ? analysis.missingSkills
+        : [],
+
+      recommendations: Array.isArray(analysis.recommendations)
+        ? analysis.recommendations
+        : [],
     };
   } catch (error) {
+    console.error("AI RESUME ANALYSIS ERROR:", error);
+    console.error("MESSAGE:", error.message);
+
     if (error instanceof ApiError) {
       throw error;
     }

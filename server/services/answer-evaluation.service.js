@@ -4,6 +4,8 @@ import { extractAIText, parseAIJson } from "../utils/aiParser.js";
 
 const VALID_QUALITIES = ["weak", "average", "good", "excellent"];
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+
 export const evaluateAnswer = async ({ interview, question, answer }) => {
   if (!question) {
     throw new ApiError(400, "Question is required");
@@ -14,10 +16,10 @@ export const evaluateAnswer = async ({ interview, question, answer }) => {
   }
 
   try {
-    const response = await openai.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    const response = await openai.chat.completions.create({
+      model: GEMINI_MODEL,
 
-      input: [
+      messages: [
         {
           role: "system",
           content: `
@@ -43,6 +45,7 @@ Do not judge grammar harshly.
 Return ONLY valid JSON.
 
 Use exactly this structure:
+
 {
   "score": 0,
   "quality": "weak",
@@ -55,14 +58,14 @@ Use exactly this structure:
 }
 
 Rules:
-score must be a number between 0 and 100.
-quality must be one of: weak, average, good, excellent
-shouldFollowUp should be true when:
-- the answer is vague
-- the answer contains an unsupported claim
-- important details are missing
-- deeper technical reasoning is needed
-- the interviewer should challenge the candidate
+- score must be a number between 0 and 100.
+- quality must be one of: weak, average, good, excellent.
+- shouldFollowUp should be true when:
+  - the answer is vague
+  - the answer contains an unsupported claim
+  - important details are missing
+  - deeper technical reasoning is needed
+  - the interviewer should challenge the candidate
           `,
         },
 
@@ -87,25 +90,47 @@ shouldFollowUp should be true when:
 
     const evaluation = parseAIJson(result);
 
-    const score = typeof evaluation.score === "number"
-      ? Math.max(0, Math.min(100, Math.round(evaluation.score)))
-      : 60;
+    const score =
+      typeof evaluation.score === "number"
+        ? Math.max(0, Math.min(100, Math.round(evaluation.score)))
+        : 60;
 
     const quality = VALID_QUALITIES.includes(evaluation.quality)
       ? evaluation.quality
-      : score >= 85 ? "excellent" : score >= 70 ? "good" : score >= 50 ? "average" : "weak";
+      : score >= 85
+        ? "excellent"
+        : score >= 70
+          ? "good"
+          : score >= 50
+            ? "average"
+            : "weak";
 
     return {
       score,
       quality,
-      strengths: Array.isArray(evaluation.strengths) ? evaluation.strengths : [],
-      weaknesses: Array.isArray(evaluation.weaknesses) ? evaluation.weaknesses : [],
-      missingPoints: Array.isArray(evaluation.missingPoints) ? evaluation.missingPoints : [],
+
+      strengths: Array.isArray(evaluation.strengths)
+        ? evaluation.strengths
+        : [],
+
+      weaknesses: Array.isArray(evaluation.weaknesses)
+        ? evaluation.weaknesses
+        : [],
+
+      missingPoints: Array.isArray(evaluation.missingPoints)
+        ? evaluation.missingPoints
+        : [],
+
       shouldFollowUp: Boolean(evaluation.shouldFollowUp),
+
       followUpReason: evaluation.followUpReason || "",
+
       feedback: evaluation.feedback || "",
     };
   } catch (error) {
+    console.error("AI ANSWER EVALUATION ERROR:", error);
+    console.error("MESSAGE:", error.message);
+
     if (error instanceof ApiError) {
       throw error;
     }

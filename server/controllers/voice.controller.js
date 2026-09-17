@@ -3,7 +3,20 @@ import ApiResponse from "../utils/apiResponse.js";
 import ApiError from "../utils/apiError.js";
 
 import { transcribeAudio, generateSpeech } from "../services/voice.service.js";
+
 import { submitAnswer } from "../services/interview.service.js";
+
+const getSpeechLanguage = (language) => {
+  if (language === "hindi") {
+    return "hi-IN";
+  }
+
+  if (language === "hinglish") {
+    return "hi-IN";
+  }
+
+  return "en-IN";
+};
 
 export const transcribeVoice = asyncHandler(async (req, res) => {
   if (!req.file) {
@@ -16,29 +29,24 @@ export const transcribeVoice = asyncHandler(async (req, res) => {
   );
 
   return res.status(200).json(
-    new ApiResponse(
-      200,
-      "Audio transcribed successfully",
-      {
-        transcript,
-      },
-    ),
+    new ApiResponse(200, "Audio transcribed successfully", {
+      transcript,
+    }),
   );
 });
 
 export const textToSpeech = asyncHandler(async (req, res) => {
-  const { text, voice } = req.body;
+  const { text, languageCode = "en-IN", speaker = "shubh" } = req.body;
 
   if (!text?.trim()) {
     throw new ApiError(400, "Text is required");
   }
 
-  const speech = await generateSpeech({
+  const audioBuffer = await generateSpeech({
     text,
-    voice,
+    languageCode,
+    speaker,
   });
-
-  const audioBuffer = Buffer.from(await speech.arrayBuffer());
 
   res.set({
     "Content-Type": "audio/mpeg",
@@ -56,7 +64,7 @@ export const submitVoiceAnswer = asyncHandler(async (req, res) => {
 
   const { id } = req.params;
 
-  // 1. Candidate voice → text
+  // 1. Voice → Text
   const transcript = await transcribeAudio(
     req.file.buffer,
     req.file.originalname,
@@ -66,32 +74,33 @@ export const submitVoiceAnswer = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Could not understand the audio");
   }
 
-  // 2. Existing interview engine
+  // 2. Existing Interview Engine
   const result = await submitAnswer(req.user._id, id, transcript);
 
   let audioBuffer = null;
 
-  // 3. Next question → voice
+  // 3. Next Question → Sarvam TTS
   if (result.nextQuestion) {
-    const speech = await generateSpeech({
-      text: result.nextQuestion,
-      voice: "alloy",
-    });
+    const languageCode = getSpeechLanguage(result.interview?.language);
 
-    audioBuffer = Buffer.from(await speech.arrayBuffer());
+    audioBuffer = await generateSpeech({
+      text: result.nextQuestion,
+      languageCode,
+      speaker: "shubh",
+    });
   }
 
   return res.status(200).json(
-    new ApiResponse(
-      200,
-      "Voice answer processed successfully",
-      {
-        transcript,
-        evaluation: result.evaluation,
-        nextQuestion: result.nextQuestion,
-        interview: result.interview,
-        hasAudio: Boolean(audioBuffer),
-      },
-    ),
+    new ApiResponse(200, "Voice answer processed successfully", {
+      transcript,
+      evaluation: result.evaluation,
+      nextQuestion: result.nextQuestion,
+      interview: result.interview,
+
+      // Actual audio
+      audio: audioBuffer ? audioBuffer.toString("base64") : null,
+
+      hasAudio: Boolean(audioBuffer),
+    }),
   );
 });
